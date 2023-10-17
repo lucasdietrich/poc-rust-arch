@@ -2,17 +2,25 @@ use rocket::serde::{json::Json, Serialize};
 use rocket::{log::LogLevel, Build, Config, Rocket, State};
 
 use crate::can::CanStats;
+use crate::controller::ControllerStats;
 use crate::shared::SharedHandle;
 
 #[derive(Serialize, Default)]
 struct Stats {
     pub can: CanStats,
+    pub ctrl: ControllerStats,
 }
 
 #[get("/stats")]
-fn route_stats(_shared: &State<SharedHandle>) -> Json<Stats> {
+async fn route_stats(shared: &State<SharedHandle>) -> Json<Stats> {
     // TODO How to retrieve CanInterface stats ?
-    let stats = Stats::default();
+    let can_stats = shared.can_stats.lock().await;
+    let controller_stats = shared.controller_stats.lock().await;
+    let stats = Stats {
+        can: can_stats.clone(),
+        ctrl: controller_stats.clone(),
+    };
+    
     Json(stats)
 }
 

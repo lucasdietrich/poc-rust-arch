@@ -21,11 +21,15 @@ fn main() {
 
     let can_config = CanConfig::default();
     let can_iface = can::CanInterface::new(can_config);
+    let can_stats = can_iface.stats.clone();
 
     let controller_config = ControllerConfig::default();
     let mut controller = controller::Controller::new(can_iface, controller_config);
 
-    let shared = Arc::new(shared::Shared::new());
+    let shared = Arc::new(shared::Shared::new(
+        can_stats,
+        controller.stats.clone(),
+    ));
 
     rt.spawn(async move {
         controller.run().await;
