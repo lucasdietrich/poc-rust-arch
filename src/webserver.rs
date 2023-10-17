@@ -11,7 +11,7 @@ struct Stats {
 
 #[get("/stats")]
 fn route_stats(_shared: &State<SharedHandle>) -> Json<Stats> {
-    // How to retrieve CanInterface stats ?
+    // TODO How to retrieve CanInterface stats ?
     let stats = Stats::default();
     Json(stats)
 }
@@ -19,7 +19,7 @@ fn route_stats(_shared: &State<SharedHandle>) -> Json<Stats> {
 pub fn webserver(listen: String, port: u16, shared: SharedHandle) -> Rocket<Build> {
     let config = Config {
         workers: 1,
-        log_level: LogLevel::Critical,
+        log_level: LogLevel::Normal,
         port: port,
         address: listen.parse().unwrap(),
         cli_colors: false,

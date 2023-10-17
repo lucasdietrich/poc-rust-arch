@@ -7,11 +7,6 @@ pub struct CanStats {
     pub tx: u32,
 }
 
-pub struct CanInterface {
-    _sock: Sock,
-    pub stats: CanStats,
-}
-
 pub struct CanConfig {
     pub iface: String,
 }
@@ -22,6 +17,11 @@ impl Default for CanConfig {
             iface: "vcan0".to_string(),
         }
     }
+}
+
+pub struct CanInterface {
+    _sock: Sock,
+    pub stats: CanStats,
 }
 
 #[derive(Debug)]
@@ -44,6 +44,9 @@ impl CanInterface {
 
     pub async fn recv(&mut self) -> Option<CanFrame> {
         self.stats.rx += 1;
-        None
+        Some(CanFrame {
+            id: 1,
+            data: [2, 0, 0, 0, 0, 0, 0, 0],
+        })
     }
 }
