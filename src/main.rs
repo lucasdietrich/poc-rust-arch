@@ -25,11 +25,9 @@ fn main() {
 
     let controller_config = ControllerConfig::default();
     let mut controller = controller::Controller::new(can_iface, controller_config);
+    let ctrl_stats = controller.stats.clone();
 
-    let shared = Arc::new(shared::Shared::new(
-        can_stats,
-        controller.stats.clone(),
-    ));
+    let shared = Arc::new(shared::Shared::new(can_stats, ctrl_stats));
 
     rt.spawn(async move {
         controller.run().await;

@@ -20,8 +20,22 @@ async fn route_stats(shared: &State<SharedHandle>) -> Json<Stats> {
         can: can_stats.clone(),
         ctrl: controller_stats.clone(),
     };
-    
+
     Json(stats)
+}
+
+#[derive(Serialize, Default)]
+struct Response {
+    success: bool
+}
+
+#[get("/query?<id>")]
+async fn route_query(id: u32, shared: &State<SharedHandle>) -> Json<Response> {
+    
+    // TODO How to query a frame to Controller ?
+
+    let response = Response { success: false };
+    Json(response)
 }
 
 pub fn webserver(listen: String, port: u16, shared: SharedHandle) -> Rocket<Build> {
@@ -36,5 +50,5 @@ pub fn webserver(listen: String, port: u16, shared: SharedHandle) -> Rocket<Buil
 
     rocket::custom(config)
         .manage(shared)
-        .mount("/", routes![route_stats])
+        .mount("/", routes![route_stats, route_query])
 }

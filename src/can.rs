@@ -22,6 +22,7 @@ impl Default for CanConfig {
     }
 }
 
+#[derive(Debug)]
 pub struct CanInterface {
     _sock: Sock,
     pub stats: Arc<Mutex<CanStats>>,

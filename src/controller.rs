@@ -1,6 +1,6 @@
 use serde::Serialize;
-use std::{time::Duration, sync::Arc};
-use tokio::{time::sleep, sync::Mutex};
+use std::{sync::Arc, time::Duration};
+use tokio::{sync::Mutex, time::sleep};
 
 use crate::can::{CanFrame, CanInterface};
 
@@ -9,12 +9,14 @@ pub struct ControllerStats {
     pub discovery_count: u32,
 }
 
+#[derive(Debug)]
 pub struct Controller {
     iface: CanInterface,
     pub stats: Arc<Mutex<ControllerStats>>,
     config: ControllerConfig,
 }
 
+#[derive(Debug)]
 pub struct ControllerConfig {
     pub discovery_period: u32, // in seconds
 }
@@ -60,5 +62,19 @@ impl Controller {
         if let Some(frame) = self.iface.recv().await {
             println!("Received frame: {:?}", frame);
         }
+    }
+
+    pub async fn query(&mut self, id: u32) -> Option<CanFrame> {
+        println!("Querying device: {}", id);
+
+        let query = CanFrame {
+            id: id,
+            data: [0x00; 8],
+        };
+
+        self.iface.send(query).await;
+        let response = self.iface.recv().await;
+        
+        response
     }
 }
