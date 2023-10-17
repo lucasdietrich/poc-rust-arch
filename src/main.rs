@@ -29,6 +29,7 @@ fn main() {
 
     let shared = Arc::new(shared::Shared::new(can_stats, ctrl_stats));
 
+    // My controller has a main task which runs forever (periodic polling and stuff)
     rt.spawn(async move {
         controller.run().await;
     });
