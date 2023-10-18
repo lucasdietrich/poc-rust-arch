@@ -1,8 +1,8 @@
 use serde::Serialize;
 use std::{time::Duration};
-use tokio::{time::sleep};
+use tokio::{time::sleep, sync::{mpsc, oneshot}, select};
 
-use crate::can::{CanFrame, CanInterface};
+use crate::can::{CanFrame, CanInterface, CanStats};
 
 #[derive(Debug, Default, Serialize, Clone)]
 pub struct ControllerStats {
@@ -10,7 +10,7 @@ pub struct ControllerStats {
 }
 
 #[derive(Debug)]
-pub struct Controller {
+pub struct ControllerState {
     pub iface: CanInterface,
     pub stats: ControllerStats,
     pub config: ControllerConfig,
@@ -29,19 +29,12 @@ impl Default for ControllerConfig {
     }
 }
 
-impl Controller {
-    pub fn new(iface: CanInterface, config: ControllerConfig) -> Controller {
-        Controller {
+impl ControllerState {
+    pub fn new(iface: CanInterface, config: ControllerConfig) -> ControllerState {
+        ControllerState {
             iface,
             stats: ControllerStats::default(),
             config,
-        }
-    }
-
-    pub async fn run(&mut self) {
-        loop {
-            self.discover().await;
-            sleep(Duration::from_secs(self.config.discovery_period as u64)).await;
         }
     }
 
@@ -64,7 +57,7 @@ impl Controller {
         }
     }
 
-    pub async fn query(&mut self, id: u32) -> Option<CanFrame> {
+    pub async fn query(&mut self, id: u32) -> Option<u32> {
         println!("Querying device: {}", id);
 
         let query = CanFrame {
@@ -72,9 +65,115 @@ impl Controller {
             data: [0x00; 8],
         };
 
-        self.iface.send(query).await;
-        let response = self.iface.recv().await;
-        
-        response
+        self.iface.recv().await.map(|frame| {
+            frame.data[0] as u32
+        })
+    }
+}
+
+pub struct ControllerActor {
+    receiver: mpsc::Receiver<ControllerMessage>,
+    state: ControllerState,
+}
+
+pub enum ControllerMessageType {
+    Query(u32),
+    GetStats,
+}
+
+pub enum ControllerResponse {
+    Query(u32),
+    GetStats(ControllerStats, CanStats),
+}
+
+pub struct ControllerMessage {
+    respond_to: oneshot::Sender<ControllerResponse>,
+    inner: ControllerMessageType,
+}
+
+impl ControllerActor {
+    fn new(state: ControllerState, receiver: mpsc::Receiver<ControllerMessage>) -> Self {
+        ControllerActor { receiver, state }
+    }
+
+    fn handle_message(&mut self, message: ControllerMessage) {
+        match message.inner {
+            ControllerMessageType::Query(id) => {
+                let response = self.state.query(id);
+                let _ = message.respond_to.send(ControllerResponse::Query(id));
+            }
+            ControllerMessageType::GetStats => {
+                let response = ControllerResponse::GetStats(
+                    self.state.stats.clone(),
+                    self.state.iface.stats.clone(),
+                );
+                message.respond_to.send(response);
+            }
+        }
+    }
+}
+
+async fn run_controller_actor(mut actor: ControllerActor) {
+    loop {
+        select! {
+            Some(msg) = actor.receiver.recv() => {
+                actor.handle_message(msg);
+            },
+            // receiver can frame
+            // handle shutdown
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct ControllerActorHandler {
+    sender: mpsc::Sender<ControllerMessage>,
+}
+
+impl ControllerActorHandler {
+    pub fn new(state: ControllerState) -> Self {
+        let (sender, receiver) = mpsc::channel(8);
+        let actor = ControllerActor::new(state, receiver);
+        tokio::spawn(run_controller_actor(actor));
+
+        Self { sender }
+    }
+
+    pub async fn get_unique_id(&self, id: u32) -> u32 {
+        let (send, recv) = oneshot::channel();
+        let msg = ControllerMessage {
+            respond_to: send,
+            inner: ControllerMessageType::Query(id),
+        };
+
+        // Ignore send errors. If this send fails, so does the
+        // recv.await below. There's no reason to check the
+        // failure twice.
+        let _ = self.sender.send(msg).await;
+        let answer = recv.await.expect("Actor task has been killed");
+
+        match answer {
+            ControllerResponse::Query(answer) => answer,
+            _ => panic!("Unexpected response"),
+        }
+    }
+
+    pub async fn get_stats(&self) -> ControllerStats {
+        let (send, recv) = oneshot::channel();
+        let msg = ControllerMessage {
+            respond_to: send,
+            inner: ControllerMessageType::GetStats,
+        };
+
+        // Ignore send errors. If this send fails, so does the
+        // recv.await below. There's no reason to check the
+        // failure twice.
+        let _ = self.sender.send(msg).await;
+        let answer = recv.await.expect("Actor task has been killed");
+
+        match answer {
+            ControllerResponse::GetStats(stats, _) => stats,
+            _ => panic!("Unexpected response"),
+        }
     }
 }

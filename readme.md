@@ -38,4 +38,5 @@ Solutions:
   - Video: https://www.youtube.com/watch?v=fTXuGRP1ee4
 - Box might be solution to lifetime issues
 - https://actix.rs/docs/actix/actor/
+- https://play.rust-lang.org/?version=stable&mode=debug&edition=2018&gist=1e60fb476843fb130db9034e8ead210c
 - 

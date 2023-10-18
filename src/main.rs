@@ -24,14 +24,10 @@ fn main() {
     let controller_config = ControllerConfig::default();
     
     let can_iface = can::CanInterface::new(can_config);
-    let mut controller = controller::Controller::new(can_iface, controller_config);
+    let controller = controller::ControllerState::new(can_iface, controller_config);
+    let controller_actor_handle = controller::ControllerActorHandler::new(controller);
 
-    let shared = Arc::new(shared::Shared::new());
-
-    // My controller has a main task which runs forever (periodic polling and stuff)
-    rt.spawn(async move {
-        controller.run().await;
-    });
+    let shared = Arc::new(shared::Shared::new(controller_actor_handle));
 
     let h_web =
         rt.spawn(webserver::webserver("0.0.0.0".to_string(), 8091, shared.clone()).launch());

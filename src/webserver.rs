@@ -12,14 +12,8 @@ struct Stats {
 }
 
 #[get("/stats")]
-async fn route_stats(shared: &State<SharedHandle>) -> Json<Stats> {
-    // let controller = shared.controller;
-    // let stats = Stats {
-    //     can: controller.iface.stats.clone(),
-    //     ctrl: controller.stats.clone(),
-    // };
-
-    let stats = Stats::default();
+async fn route_stats(shared: &State<SharedHandle>) -> Json<ControllerStats> {
+    let stats = shared.controller_handler.get_stats().await;
 
     Json(stats)
 }
@@ -32,7 +26,7 @@ struct Response {
 #[get("/query?<id>")]
 async fn route_query(id: u32, shared: &State<SharedHandle>) -> Json<Response> {
     
-    // TODO How to query a frame to Controller ?
+    // TODO How to query a frame to ControllerState ?
 
     let response = Response { success: false };
     Json(response)
