@@ -1,6 +1,6 @@
 use serde::Serialize;
-use std::{sync::Arc, time::Duration};
-use tokio::{sync::Mutex, time::sleep};
+use std::{time::Duration};
+use tokio::{time::sleep};
 
 use crate::can::{CanFrame, CanInterface};
 
@@ -11,9 +11,9 @@ pub struct ControllerStats {
 
 #[derive(Debug)]
 pub struct Controller {
-    iface: CanInterface,
-    pub stats: Arc<Mutex<ControllerStats>>,
-    config: ControllerConfig,
+    pub iface: CanInterface,
+    pub stats: ControllerStats,
+    pub config: ControllerConfig,
 }
 
 #[derive(Debug)]
@@ -33,7 +33,7 @@ impl Controller {
     pub fn new(iface: CanInterface, config: ControllerConfig) -> Controller {
         Controller {
             iface,
-            stats: Arc::new(Mutex::new(ControllerStats::default())),
+            stats: ControllerStats::default(),
             config,
         }
     }
@@ -48,9 +48,9 @@ impl Controller {
     async fn discover(&mut self) {
         println!(
             "Discovering devices... (count: {})",
-            self.stats.lock().await.discovery_count
+            self.stats.discovery_count
         );
-        self.stats.lock().await.discovery_count += 1;
+        self.stats.discovery_count += 1;
 
         let discovery_frame = CanFrame {
             id: 0x123,

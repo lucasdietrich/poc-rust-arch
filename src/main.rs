@@ -11,6 +11,7 @@ use std::sync::Arc;
 
 use can::CanConfig;
 use controller::ControllerConfig;
+use tokio::sync::Mutex;
 
 fn main() {
     let rt = tokio::runtime::Builder::new_current_thread()
@@ -20,14 +21,12 @@ fn main() {
         .unwrap();
 
     let can_config = CanConfig::default();
-    let can_iface = can::CanInterface::new(can_config);
-    let can_stats = can_iface.stats.clone();
-
     let controller_config = ControllerConfig::default();
+    
+    let can_iface = can::CanInterface::new(can_config);
     let mut controller = controller::Controller::new(can_iface, controller_config);
-    let ctrl_stats = controller.stats.clone();
 
-    let shared = Arc::new(shared::Shared::new(can_stats, ctrl_stats));
+    let shared = Arc::new(shared::Shared::new());
 
     // My controller has a main task which runs forever (periodic polling and stuff)
     rt.spawn(async move {

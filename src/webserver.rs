@@ -13,13 +13,13 @@ struct Stats {
 
 #[get("/stats")]
 async fn route_stats(shared: &State<SharedHandle>) -> Json<Stats> {
-    // TODO How to retrieve CanInterface stats ?
-    let can_stats = shared.can_stats.lock().await;
-    let controller_stats = shared.controller_stats.lock().await;
-    let stats = Stats {
-        can: can_stats.clone(),
-        ctrl: controller_stats.clone(),
-    };
+    // let controller = shared.controller;
+    // let stats = Stats {
+    //     can: controller.iface.stats.clone(),
+    //     ctrl: controller.stats.clone(),
+    // };
+
+    let stats = Stats::default();
 
     Json(stats)
 }

@@ -25,7 +25,7 @@ impl Default for CanConfig {
 #[derive(Debug)]
 pub struct CanInterface {
     _sock: Sock,
-    pub stats: Arc<Mutex<CanStats>>,
+    pub stats: CanStats,
 }
 
 #[derive(Debug)]
@@ -38,16 +38,16 @@ impl CanInterface {
     pub fn new(_config: CanConfig) -> CanInterface {
         CanInterface {
             _sock: Sock::new(),
-            stats: Arc::new(Mutex::new(CanStats::default())),
+            stats: CanStats::default(),
         }
     }
 
     pub async fn send(&mut self, _frame: CanFrame) {
-        self.stats.lock().await.tx += 1;
+        self.stats.tx += 1;
     }
 
     pub async fn recv(&mut self) -> Option<CanFrame> {
-        self.stats.lock().await.rx += 1;
+        self.stats.rx += 1;
         Some(CanFrame {
             id: 1,
             data: [2, 0, 0, 0, 0, 0, 0, 0],
