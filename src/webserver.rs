@@ -20,16 +20,14 @@ async fn route_stats(shared: &State<SharedHandle>) -> Json<ControllerStats> {
 
 #[derive(Serialize, Default)]
 struct Response {
-    success: bool
+    id: u32
 }
 
 #[get("/query?<id>")]
 async fn route_query(id: u32, shared: &State<SharedHandle>) -> Json<Response> {
     
-    // TODO How to query a frame to ControllerState ?
-
-    let response = Response { success: false };
-    Json(response)
+    let id = shared.controller_handler.get_unique_id(id).await;
+    Json(Response { id })
 }
 
 pub fn webserver(listen: String, port: u16, shared: SharedHandle) -> Rocket<Build> {

@@ -1,6 +1,6 @@
 use serde::Serialize;
 use std::{time::Duration};
-use tokio::{time::sleep, sync::{mpsc, oneshot}, select};
+use tokio::{time::sleep, sync::{mpsc, oneshot}, select, runtime::Runtime};
 
 use crate::can::{CanFrame, CanInterface, CanStats};
 
@@ -96,10 +96,10 @@ impl ControllerActor {
         ControllerActor { receiver, state }
     }
 
-    fn handle_message(&mut self, message: ControllerMessage) {
+    async fn handle_message(&mut self, message: ControllerMessage) {
         match message.inner {
             ControllerMessageType::Query(id) => {
-                let response = self.state.query(id);
+                let id = self.state.query(id).await.unwrap();
                 let _ = message.respond_to.send(ControllerResponse::Query(id));
             }
             ControllerMessageType::GetStats => {
@@ -107,7 +107,7 @@ impl ControllerActor {
                     self.state.stats.clone(),
                     self.state.iface.stats.clone(),
                 );
-                message.respond_to.send(response);
+                let _ = message.respond_to.send(response);
             }
         }
     }
@@ -117,11 +117,13 @@ async fn run_controller_actor(mut actor: ControllerActor) {
     loop {
         select! {
             Some(msg) = actor.receiver.recv() => {
-                actor.handle_message(msg);
+                actor.handle_message(msg).await;
             },
             // receiver can frame
             // handle shutdown
         }
+
+        actor.state.discover().await;
     }
 }
 
@@ -131,11 +133,10 @@ pub struct ControllerActorHandler {
 }
 
 impl ControllerActorHandler {
-    pub fn new(state: ControllerState) -> Self {
+    pub fn new(rt: &Runtime, state: ControllerState) -> Self {
         let (sender, receiver) = mpsc::channel(8);
         let actor = ControllerActor::new(state, receiver);
-        tokio::spawn(run_controller_actor(actor));
-
+        rt.spawn(run_controller_actor(actor));
         Self { sender }
     }
 

@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use can::CanConfig;
 use controller::ControllerConfig;
-use tokio::sync::Mutex;
+use tokio::{sync::Mutex, time::sleep};
 
 fn main() {
     let rt = tokio::runtime::Builder::new_current_thread()
@@ -25,7 +25,7 @@ fn main() {
     
     let can_iface = can::CanInterface::new(can_config);
     let controller = controller::ControllerState::new(can_iface, controller_config);
-    let controller_actor_handle = controller::ControllerActorHandler::new(controller);
+    let controller_actor_handle = controller::ControllerActorHandler::new(&rt, controller);
 
     let shared = Arc::new(shared::Shared::new(controller_actor_handle));
 
