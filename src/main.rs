@@ -6,6 +6,7 @@ mod controller;
 mod shared;
 mod utils;
 mod webserver;
+mod device;
 
 use std::sync::Arc;
 
@@ -23,7 +24,7 @@ fn main() {
     let controller_config = ControllerConfig::default();
     
     let can_iface = can::CanInterface::new(can_config);
-    let controller = controller::ControllerState::new(can_iface, controller_config);
+    let controller = controller::Controller::new(can_iface, controller_config);
     let controller_actor_handle = controller::ControllerActorHandler::new(&rt, controller);
 
     let shared = Arc::new(shared::Shared::new(controller_actor_handle));

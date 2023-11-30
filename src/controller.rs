@@ -10,7 +10,7 @@ pub struct ControllerStats {
 }
 
 #[derive(Debug)]
-pub struct ControllerState {
+pub struct Controller {
     pub iface: CanInterface,
     pub stats: ControllerStats,
     pub config: ControllerConfig,
@@ -29,9 +29,9 @@ impl Default for ControllerConfig {
     }
 }
 
-impl ControllerState {
-    pub fn new(iface: CanInterface, config: ControllerConfig) -> ControllerState {
-        ControllerState {
+impl Controller {
+    pub fn new(iface: CanInterface, config: ControllerConfig) -> Controller {
+        Controller {
             iface,
             stats: ControllerStats::default(),
             config,
@@ -74,7 +74,7 @@ impl ControllerState {
 
 pub struct ControllerActor {
     receiver: mpsc::Receiver<ControllerMessage>,
-    state: ControllerState,
+    state: Controller,
 }
 
 #[derive(Debug)]
@@ -96,7 +96,7 @@ pub struct ControllerMessage {
 }
 
 impl ControllerActor {
-    fn new(state: ControllerState, receiver: mpsc::Receiver<ControllerMessage>) -> Self {
+    fn new(state: Controller, receiver: mpsc::Receiver<ControllerMessage>) -> Self {
         ControllerActor { receiver, state }
     }
 
@@ -151,7 +151,7 @@ pub struct ControllerActorHandler {
 }
 
 impl ControllerActorHandler {
-    pub fn new(rt: &Runtime, state: ControllerState) -> Self {
+    pub fn new(rt: &Runtime, state: Controller) -> Self {
         let (sender, receiver) = mpsc::channel(8);
         let actor = ControllerActor::new(state, receiver);
         rt.spawn(run_controller_actor(actor));
