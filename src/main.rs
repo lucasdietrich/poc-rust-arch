@@ -1,12 +1,13 @@
 #[macro_use]
 extern crate rocket;
 
+mod alarm;
 mod can;
 mod controller;
+mod device;
 mod shared;
 mod utils;
 mod webserver;
-mod device;
 
 use std::sync::Arc;
 
@@ -22,7 +23,7 @@ fn main() {
 
     let can_config = CanConfig::default();
     let controller_config = ControllerConfig::default();
-    
+
     let can_iface = can::CanInterface::new(can_config);
     let controller = controller::Controller::new(can_iface, controller_config);
     let controller_actor_handle = controller::ControllerActorHandler::new(&rt, controller);

@@ -20,11 +20,15 @@ async fn route_stats(shared: &State<SharedHandle>) -> Json<ControllerStats> {
 
 #[derive(Serialize, Default)]
 struct Response {
-    id: u32
+    id: u32,
 }
 
 #[get("/query?<id>&<timeout>")]
-async fn route_query(id: u32, timeout: Option<u32>, shared: &State<SharedHandle>) -> Json<Response> {
+async fn route_query(
+    id: u32,
+    timeout: Option<u32>,
+    shared: &State<SharedHandle>,
+) -> Json<Response> {
     let id = shared.controller_handler.query(id, timeout).await;
     Json(Response { id })
 }

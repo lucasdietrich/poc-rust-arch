@@ -1,6 +1,11 @@
 use serde::Serialize;
-use std::{time::Duration, num::Wrapping};
-use tokio::{time::sleep, sync::{mpsc, oneshot}, select, runtime::Runtime};
+use std::{num::Wrapping, time::Duration};
+use tokio::{
+    runtime::Runtime,
+    select,
+    sync::{mpsc, oneshot},
+    time::sleep,
+};
 
 use crate::can::{CanFrame, CanInterface, CanStats};
 
@@ -66,9 +71,7 @@ impl Controller {
         };
         self.iface.send(query).await;
 
-        self.iface.recv().await.map(|frame| {
-            frame.data[0] as u32
-        })
+        self.iface.recv().await.map(|frame| frame.data[0] as u32)
     }
 }
 
@@ -102,7 +105,7 @@ impl ControllerActor {
 
     async fn handle_message(&mut self, message: ControllerMessage) {
         match message.inner {
-            ControllerMessageType::Query(id,timeout_ms) => {
+            ControllerMessageType::Query(id, timeout_ms) => {
                 if let Some(id) = self.state.query(id, timeout_ms).await {
                     let _ = message.respond_to.send(ControllerResponse::Query(id));
                 } else {
@@ -194,5 +197,17 @@ impl ControllerActorHandler {
             ControllerResponse::GetStats(stats, _) => stats,
             _ => panic!("Unexpected response"),
         }
+    }
+}
+
+#[async_trait]
+pub trait ControllerAPI: Send + Sync {
+    async fn query(&self, id: u32, timeout_ms: Option<u32>) -> u32;
+}
+
+#[async_trait]
+impl ControllerAPI for ControllerActorHandler {
+    async fn query(&self, id: u32, timeout_ms: Option<u32>) -> u32 {
+        ControllerActorHandler::query(self, id, timeout_ms).await
     }
 }

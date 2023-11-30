@@ -10,11 +10,7 @@ pub struct Shared {
 }
 
 impl Shared {
-    pub fn new(
-        controller_handler: ControllerActorHandler,
-    ) -> Shared {
-        Shared {
-            controller_handler
-        }
+    pub fn new(controller_handler: ControllerActorHandler) -> Shared {
+        Shared { controller_handler }
     }
 }
