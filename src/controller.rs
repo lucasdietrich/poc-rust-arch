@@ -45,10 +45,10 @@ impl ControllerState {
         );
         self.stats.discovery_count += 1;
 
-        let discovery_frame = CanFrame {
-            id: 0x123,
-            data: [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08],
-        };
+        // let discovery_frame = CanFrame {
+        //     id: 0x123,
+        //     data: [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08],
+        // };
 
         // self.iface.send(discovery_frame).await;
 

@@ -1,7 +1,6 @@
 use std::sync::Arc;
-use tokio::sync::Mutex;
 
-use crate::{can::CanStats, controller::{ControllerStats, ControllerState, ControllerActorHandler}};
+use crate::controller::ControllerActorHandler;
 
 pub type SharedHandle = Arc<Shared>;
 

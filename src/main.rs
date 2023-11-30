@@ -11,7 +11,6 @@ use std::sync::Arc;
 
 use can::CanConfig;
 use controller::ControllerConfig;
-use tokio::{sync::Mutex, time::sleep};
 
 fn main() {
     let rt = tokio::runtime::Builder::new_current_thread()
