@@ -1,9 +1,10 @@
-use std::sync::Arc;
-
+use std::{sync::Arc, pin::Pin, task::{Context, Poll}};
+use tokio::time::{sleep, Duration};
 use crate::utils::Sock;
 use serde::Serialize;
 use tokio::sync::Mutex;
 use std::num::Wrapping;
+use chrono::{DateTime, Utc};
 
 #[derive(Default, Debug, Serialize, Clone)]
 pub struct CanStats {
@@ -27,6 +28,7 @@ impl Default for CanConfig {
 pub struct CanInterface {
     _sock: Sock,
     _n: Wrapping<u8>,
+    buf: Vec<CanFrameLoopback>,
     pub stats: CanStats,
 }
 
@@ -36,25 +38,45 @@ pub struct CanFrame {
     pub data: [u8; 8],
 }
 
+#[derive(Debug)]
+struct CanFrameLoopback {
+    frame: CanFrame,
+    push_timestamp: DateTime<Utc>,
+}
+
+const DELAY: u64 = 750;
+
 impl CanInterface {
     pub fn new(_config: CanConfig) -> CanInterface {
         CanInterface {
             _sock: Sock::new(),
             _n: Wrapping(0),
+            buf: Vec::new(),
             stats: CanStats::default(),
         }
     }
 
-    pub async fn send(&mut self, _frame: CanFrame) {
+    pub async fn send(&mut self, frame: CanFrame) {
         self.stats.tx += 1;
-        self._n += _frame.id as u8;
+        self._n += frame.data[0] as u8;
+        self.buf.push(CanFrameLoopback {
+            frame,
+            push_timestamp: Utc::now(),
+        });
     }
 
     pub async fn recv(&mut self) -> Option<CanFrame> {
-        self.stats.rx += 1;
-        Some(CanFrame {
-            id: 1,
-            data: [self._n.0, 0, 0, 0, 0, 0, 0, 0],
-        })
+        let now = Utc::now();
+        
+        if let Some(lp_frame) = self.buf.get(0) {
+            if lp_frame.push_timestamp + Duration::from_millis(DELAY) < now {
+                let mut frame = self.buf.pop().unwrap().frame;
+                frame.data[0] = frame.data[0].wrapping_add(self._n.0);
+                self.stats.rx += 1;
+                return Some(frame);
+            }
+        }
+    
+        None
     }
 }

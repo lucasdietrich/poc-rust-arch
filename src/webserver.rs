@@ -23,10 +23,9 @@ struct Response {
     id: u32
 }
 
-#[get("/query?<id>")]
-async fn route_query(id: u32, shared: &State<SharedHandle>) -> Json<Response> {
-    
-    let id = shared.controller_handler.get_unique_id(id).await;
+#[get("/query?<id>&<timeout>")]
+async fn route_query(id: u32, timeout: Option<u32>, shared: &State<SharedHandle>) -> Json<Response> {
+    let id = shared.controller_handler.query(id, timeout).await;
     Json(Response { id })
 }
 

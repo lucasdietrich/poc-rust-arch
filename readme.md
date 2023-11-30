@@ -10,9 +10,10 @@ Firewall rules:
     sudo firewall-cmd --permanent --add-port=8091/tcp
     sudo firewall-cmd --reload
 
-Access:
+Curl commands:
 
-    http://localhost:8091
+    curl http://localhost:8091/query?id=23
+    curl http://localhost:8091/stats
 
 ## Architecture
 
@@ -39,4 +40,3 @@ Solutions:
 - Box might be solution to lifetime issues
 - https://actix.rs/docs/actix/actor/
 - https://play.rust-lang.org/?version=stable&mode=debug&edition=2018&gist=1e60fb476843fb130db9034e8ead210c
-- 

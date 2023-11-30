@@ -1,5 +1,5 @@
 use serde::Serialize;
-use std::{time::Duration};
+use std::{time::Duration, num::Wrapping};
 use tokio::{time::sleep, sync::{mpsc, oneshot}, select, runtime::Runtime};
 
 use crate::can::{CanFrame, CanInterface, CanStats};
@@ -50,20 +50,21 @@ impl ControllerState {
             data: [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08],
         };
 
-        self.iface.send(discovery_frame).await;
+        // self.iface.send(discovery_frame).await;
 
         if let Some(frame) = self.iface.recv().await {
             println!("Received frame: {:?}", frame);
         }
     }
 
-    pub async fn query(&mut self, id: u32) -> Option<u32> {
-        println!("Querying device: {}", id);
+    pub async fn query(&mut self, id: u32, timeout_ms: Option<u32>) -> Option<u32> {
+        println!("Querying device: {} timeout {:?}", id, timeout_ms);
 
         let query = CanFrame {
             id: id,
-            data: [0x00; 8],
+            data: [0xFF; 8],
         };
+        self.iface.send(query).await;
 
         self.iface.recv().await.map(|frame| {
             frame.data[0] as u32
@@ -76,16 +77,19 @@ pub struct ControllerActor {
     state: ControllerState,
 }
 
+#[derive(Debug)]
 pub enum ControllerMessageType {
-    Query(u32),
+    Query(u32, Option<u32>), // id, timeout_ms
     GetStats,
 }
 
+#[derive(Debug)]
 pub enum ControllerResponse {
     Query(u32),
     GetStats(ControllerStats, CanStats),
 }
 
+#[derive(Debug)]
 pub struct ControllerMessage {
     respond_to: oneshot::Sender<ControllerResponse>,
     inner: ControllerMessageType,
@@ -98,9 +102,12 @@ impl ControllerActor {
 
     async fn handle_message(&mut self, message: ControllerMessage) {
         match message.inner {
-            ControllerMessageType::Query(id) => {
-                let id = self.state.query(id).await.unwrap();
-                let _ = message.respond_to.send(ControllerResponse::Query(id));
+            ControllerMessageType::Query(id,timeout_ms) => {
+                if let Some(id) = self.state.query(id, timeout_ms).await {
+                    let _ = message.respond_to.send(ControllerResponse::Query(id));
+                } else {
+                    let _ = message.respond_to.send(ControllerResponse::Query(0));
+                }
             }
             ControllerMessageType::GetStats => {
                 let response = ControllerResponse::GetStats(
@@ -114,16 +121,27 @@ impl ControllerActor {
 }
 
 async fn run_controller_actor(mut actor: ControllerActor) {
+    let mut counter: Wrapping<u32> = Wrapping(0);
+    let mut last_discovery: u32 = 0;
     loop {
         select! {
             Some(msg) = actor.receiver.recv() => {
+                println!("Received message: {:?}", msg);
                 actor.handle_message(msg).await;
             },
-            // receiver can frame
+            // Some(msg) = actor.state.iface.recv_frame() => {
+            //     println!("Received frame: {:?}", msg);
+            // },
+            _ = sleep(Duration::from_secs(2)) => {
+                println!("Tick");
+                counter += 1;
+                if counter.0 - last_discovery > actor.state.config.discovery_period {
+                    actor.state.discover().await;
+                    last_discovery = counter.0;
+                }
+            },
             // handle shutdown
         }
-
-        actor.state.discover().await;
     }
 }
 
@@ -140,11 +158,11 @@ impl ControllerActorHandler {
         Self { sender }
     }
 
-    pub async fn get_unique_id(&self, id: u32) -> u32 {
+    pub async fn query(&self, id: u32, timeout_ms: Option<u32>) -> u32 {
         let (send, recv) = oneshot::channel();
         let msg = ControllerMessage {
             respond_to: send,
-            inner: ControllerMessageType::Query(id),
+            inner: ControllerMessageType::Query(id, timeout_ms),
         };
 
         // Ignore send errors. If this send fails, so does the
