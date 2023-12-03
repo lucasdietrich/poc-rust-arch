@@ -4,9 +4,10 @@ use crate::{
     device::{DeviceActionTrait, DeviceControllableTrait, DeviceError, DeviceTrait},
 };
 
-struct AlarmNode {
-    active: bool,
-    triggered_count: u32,
+#[derive(Debug)]
+pub struct AlarmNode {
+    pub active: bool,
+    pub triggered_count: u32,
 }
 
 #[async_trait]
@@ -25,10 +26,12 @@ pub enum AlarmAction {
     PowerLights(bool, bool), // set front and rear lights on/off
 }
 
-impl DeviceActionTrait for AlarmAction { }
+impl DeviceActionTrait for AlarmAction {}
 
 #[async_trait]
-impl DeviceControllableTrait<AlarmAction> for AlarmNode {
+impl DeviceControllableTrait for AlarmNode {
+    type Action = AlarmAction;
+
     async fn handle_action(
         &mut self,
         api: &dyn ControllerAPI,

@@ -1,6 +1,7 @@
 use rocket::serde::{json::Json, Serialize};
 use rocket::{log::LogLevel, Build, Config, Rocket, State};
 
+use crate::alarm::{AlarmAction, AlarmNode};
 use crate::can::CanStats;
 use crate::controller::ControllerStats;
 use crate::shared::SharedHandle;
@@ -9,6 +10,17 @@ use crate::shared::SharedHandle;
 struct Stats {
     pub can: CanStats,
     pub ctrl: ControllerStats,
+}
+
+#[get("/dev_action")]
+async fn route_dev_action(shared: &State<SharedHandle>) -> Json<Response> {
+    let action = AlarmAction::PowerLights(true, true);
+
+    // let dev = Device::<AlarmNode>::
+
+    // let ret = shared.controller_handler.device_action(dev, &action).await;
+
+    Json(Response { id: 0 })
 }
 
 #[get("/stats")]
@@ -45,5 +57,5 @@ pub fn webserver(listen: String, port: u16, shared: SharedHandle) -> Rocket<Buil
 
     rocket::custom(config)
         .manage(shared)
-        .mount("/", routes![route_stats, route_query])
+        .mount("/", routes![route_stats, route_query, route_dev_action])
 }

@@ -7,7 +7,10 @@ use tokio::{
     time::sleep,
 };
 
-use crate::can::{CanFrame, CanInterface, CanStats};
+use crate::{
+    can::{CanFrame, CanInterface, CanStats},
+    device::{DeviceAction, DeviceActionTrait, DeviceControllableTrait, DeviceError, Device}, alarm::AlarmNode,
+};
 
 #[derive(Debug, Default, Serialize, Clone)]
 pub struct ControllerStats {
@@ -19,6 +22,8 @@ pub struct Controller {
     pub iface: CanInterface,
     pub stats: ControllerStats,
     pub config: ControllerConfig,
+
+    pub alarm: Device<AlarmNode>,
 }
 
 #[derive(Debug)]
@@ -40,6 +45,13 @@ impl Controller {
             iface,
             stats: ControllerStats::default(),
             config,
+            alarm: Device::<AlarmNode> {
+                last_seen: None,
+                specific: AlarmNode {
+                    active: false,
+                    triggered_count: 0,
+                },
+            },
         }
     }
 
@@ -80,10 +92,10 @@ pub struct ControllerActor {
     state: Controller,
 }
 
-#[derive(Debug)]
 pub enum ControllerMessageType {
     Query(u32, Option<u32>), // id, timeout_ms
     GetStats,
+    QueryDevice(Box<dyn DeviceActionTrait>),
 }
 
 #[derive(Debug)]
@@ -92,7 +104,6 @@ pub enum ControllerResponse {
     GetStats(ControllerStats, CanStats),
 }
 
-#[derive(Debug)]
 pub struct ControllerMessage {
     respond_to: oneshot::Sender<ControllerResponse>,
     inner: ControllerMessageType,
@@ -119,6 +130,7 @@ impl ControllerActor {
                 );
                 let _ = message.respond_to.send(response);
             }
+            ControllerMessageType::QueryDevice(action) => {}
         }
     }
 }
@@ -129,7 +141,7 @@ async fn run_controller_actor(mut actor: ControllerActor) {
     loop {
         select! {
             Some(msg) = actor.receiver.recv() => {
-                println!("Received message: {:?}", msg);
+                // println!("Received message: {:?}", msg);
                 actor.handle_message(msg).await;
             },
             // Some(msg) = actor.state.iface.recv_frame() => {
@@ -198,6 +210,14 @@ impl ControllerActorHandler {
             _ => panic!("Unexpected response"),
         }
     }
+
+    pub async fn device_action<A: DeviceActionTrait>(
+        &mut self,
+        dev: &mut dyn DeviceControllableTrait<Action = A>,
+        action: &A,
+    ) -> Result<(), DeviceError> {
+        dev.handle_action(self, action).await
+    }
 }
 
 #[async_trait]
@@ -211,3 +231,8 @@ impl ControllerAPI for ControllerActorHandler {
         ControllerActorHandler::query(self, id, timeout_ms).await
     }
 }
+
+// #[derive(Clone, Debug)]
+// pub struct DeviceHandle<D: DeviceControllableTrait> {
+//     dev: &mut D,
+// }

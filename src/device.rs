@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use std::time::Instant;
+use std::{time::Instant, fmt::Debug};
 use thiserror::Error;
 
 use crate::{can::CanFrame, controller::ControllerAPI};
@@ -10,18 +10,20 @@ pub enum DeviceError {
     Unsupported,
 }
 
-struct Device<D>
+#[derive(Debug)]
+pub struct Device<D>
 where
-    D: DeviceTrait,
+    D: DeviceTrait + Debug,
 {
-    last_seen: Option<Instant>,
-    specific: D,
+    pub last_seen: Option<Instant>,
+
+    pub specific: D,
 }
 
 #[async_trait]
 impl<D> DeviceTrait for Device<D>
 where
-    D: DeviceTrait,
+    D: DeviceTrait + Debug,
 {
     async fn handle_frame(&mut self, frame: &CanFrame) -> Result<(), DeviceError> {
         self.last_seen = Some(Instant::now());
@@ -40,61 +42,63 @@ pub enum DeviceAction {
 
 impl DeviceActionTrait for DeviceAction {}
 
-#[async_trait]
-impl<D> DeviceControllableTrait<DeviceAction> for Device<D>
-where
-    D: DeviceTrait,
-{
-    async fn handle_action(
-        &mut self,
-        api: &dyn ControllerAPI,
-        action: &DeviceAction,
-    ) -> Result<(), DeviceError> {
-        match action {
-            DeviceAction::Reset => {
-                let _ = api.query(1, Some(0)).await;
-            }
-        };
-
-        Ok(())
-    }
-}
-
 // #[async_trait]
-// impl<D, A> DeviceControllableTrait<A> for Device<D>
+// impl<D> DeviceControllableTrait for Device<D>
 // where
-//     D: DeviceTrait + DeviceControllableTrait<A>,
-//     A: DeviceActionTrait,
+//     D: DeviceTrait + DeviceControllableTrait<Action = DeviceAction>,
 // {
+//     type Action = DeviceAction;
+
 //     async fn handle_action(
 //         &mut self,
 //         api: &dyn ControllerAPI,
-//         action: &A,
+//         action: &DeviceAction,
 //     ) -> Result<(), DeviceError> {
-//         self.specific.handle_action(api, action).await
+//         match action {
+//             DeviceAction::Reset => {
+//                 let _ = api.query(1, Some(0)).await;
+//             }
+//         };
+
+//         Ok(())
 //     }
 // }
 
+#[async_trait]
+impl<D, A> DeviceControllableTrait for Device<D>
+where
+    D: DeviceTrait + DeviceControllableTrait<Action = A> + Debug,
+    A: DeviceActionTrait,
+{
+    type Action = A;
+
+    async fn handle_action(
+        &mut self,
+        api: &dyn ControllerAPI,
+        action: &Self::Action,
+    ) -> Result<(), DeviceError> {
+        self.specific.handle_action(api, action).await
+    }
+}
 
 #[async_trait]
 pub trait DeviceTrait: Send {
     async fn handle_frame(&mut self, frame: &CanFrame) -> Result<(), DeviceError>;
 }
 
-pub trait DeviceActionTrait: Sync
-{
-    fn get_action(&self) -> &Self {
-        self
-    }
+pub trait DeviceActionTrait: Sync + Send {
+    // fn get_action(&self) -> Self {
+    //     self
+    // }
 }
 
 #[async_trait]
-pub trait DeviceControllableTrait<A>: Send
-    where A: DeviceActionTrait
-{
+pub trait DeviceControllableTrait: Send {
+    type Action: DeviceActionTrait;
+
     async fn handle_action(
         &mut self,
         api: &dyn ControllerAPI,
-        action: &A,
+        action: &Self::Action,
     ) -> Result<(), DeviceError>;
 }
