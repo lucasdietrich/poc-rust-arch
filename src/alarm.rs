@@ -4,7 +4,7 @@ use crate::{
     device::{DeviceActionTrait, DeviceControllableTrait, DeviceError, DeviceTrait},
 };
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct AlarmNode {
     pub active: bool,
     pub triggered_count: u32,
@@ -42,7 +42,7 @@ impl DeviceControllableTrait for AlarmNode {
                 self.active = *active;
             }
             AlarmAction::PowerLights(front, rear) => {
-                let ret = api.query(1, Some(0)).await;
+                let z = api.query(1, Some(0)).await;
             }
         };
 

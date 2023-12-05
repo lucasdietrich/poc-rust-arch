@@ -9,7 +9,7 @@ use tokio::{
 
 use crate::{
     can::{CanFrame, CanInterface, CanStats},
-    device::{DeviceAction, DeviceActionTrait, DeviceControllableTrait, DeviceError, Device}, alarm::AlarmNode,
+    device::{DeviceAction, DeviceActionTrait, DeviceControllableTrait, DeviceError, Device, DeviceTrait}, alarm::AlarmNode,
 };
 
 #[derive(Debug, Default, Serialize, Clone)]
@@ -24,6 +24,11 @@ pub struct Controller {
     pub config: ControllerConfig,
 
     pub alarm: Device<AlarmNode>,
+
+    receiver: mpsc::Receiver<ControllerMessage>,
+    handle: ControllerHandle,
+
+    // dev_alarm: Device<AlarmNode>,
 }
 
 #[derive(Debug)]
@@ -40,19 +45,54 @@ impl Default for ControllerConfig {
 }
 
 impl Controller {
-    pub fn new(iface: CanInterface, config: ControllerConfig) -> Controller {
+    pub fn new(rt: &Runtime, iface: CanInterface, config: ControllerConfig) -> Controller {
+        let (sender, receiver) = mpsc::channel(8);
+
         Controller {
             iface,
             stats: ControllerStats::default(),
             config,
             alarm: Device::<AlarmNode> {
+                id: 0x123,
                 last_seen: None,
                 specific: AlarmNode {
                     active: false,
                     triggered_count: 0,
                 },
             },
+            receiver,
+            handle: ControllerHandle::new(rt, sender),
         }
+    }
+
+    pub fn get_handle(&mut self) -> ControllerHandle {
+        self.handle.clone()
+    }
+
+    async fn handle_message(&mut self, message: ControllerMessage) {
+        match message.inner {
+            ControllerMessageType::Query(id, timeout_ms) => {
+                if let Some(id) = self.query(id, timeout_ms).await {
+                    let _ = message.respond_to.send(ControllerResponse::Query(id));
+                } else {
+                    let _ = message.respond_to.send(ControllerResponse::Query(0));
+                }
+            }
+            ControllerMessageType::GetStats => {
+                let response = ControllerResponse::GetStats(
+                    self.stats.clone(),
+                    self.iface.stats.clone(),
+                );
+                let _ = message.respond_to.send(response);
+            }
+            ControllerMessageType::QueryDevice(action) => {}
+        }
+    }
+
+    async fn handle_frame(&mut self, frame: CanFrame) {
+        // if frame.id == self.dev_alarm.id {
+        //     self.dev_alarm.handle_frame(&frame).await;
+        // }
     }
 
     async fn discover(&mut self) {
@@ -69,7 +109,7 @@ impl Controller {
 
         // self.iface.send(discovery_frame).await;
 
-        if let Some(frame) = self.iface.recv().await {
+        if let Some(frame) = self.iface.recv(true).await {
             println!("Received frame: {:?}", frame);
         }
     }
@@ -83,13 +123,8 @@ impl Controller {
         };
         self.iface.send(query).await;
 
-        self.iface.recv().await.map(|frame| frame.data[0] as u32)
+        self.iface.recv(true).await.map(|frame| frame.data[0] as u32)
     }
-}
-
-pub struct ControllerActor {
-    receiver: mpsc::Receiver<ControllerMessage>,
-    state: Controller,
 }
 
 pub enum ControllerMessageType {
@@ -109,67 +144,38 @@ pub struct ControllerMessage {
     inner: ControllerMessageType,
 }
 
-impl ControllerActor {
-    fn new(state: Controller, receiver: mpsc::Receiver<ControllerMessage>) -> Self {
-        ControllerActor { receiver, state }
-    }
-
-    async fn handle_message(&mut self, message: ControllerMessage) {
-        match message.inner {
-            ControllerMessageType::Query(id, timeout_ms) => {
-                if let Some(id) = self.state.query(id, timeout_ms).await {
-                    let _ = message.respond_to.send(ControllerResponse::Query(id));
-                } else {
-                    let _ = message.respond_to.send(ControllerResponse::Query(0));
-                }
-            }
-            ControllerMessageType::GetStats => {
-                let response = ControllerResponse::GetStats(
-                    self.state.stats.clone(),
-                    self.state.iface.stats.clone(),
-                );
-                let _ = message.respond_to.send(response);
-            }
-            ControllerMessageType::QueryDevice(action) => {}
-        }
-    }
-}
-
-async fn run_controller_actor(mut actor: ControllerActor) {
+pub async fn run_controller(mut ctrl: Controller) {
     let mut counter: Wrapping<u32> = Wrapping(0);
     let mut last_discovery: u32 = 0;
     loop {
         select! {
-            Some(msg) = actor.receiver.recv() => {
+            Some(msg) = ctrl.receiver.recv() => {
                 // println!("Received message: {:?}", msg);
-                actor.handle_message(msg).await;
+                ctrl.handle_message(msg).await;
             },
-            // Some(msg) = actor.state.iface.recv_frame() => {
-            //     println!("Received frame: {:?}", msg);
-            // },
+            Some(msg) = ctrl.iface.recv(false) => {
+                println!("Received frame: {:?}", msg);
+                ctrl.handle_frame(msg).await;
+            },
             _ = sleep(Duration::from_secs(2)) => {
                 println!("Tick");
                 counter += 1;
-                if counter.0 - last_discovery > actor.state.config.discovery_period {
-                    actor.state.discover().await;
+                if counter.0 - last_discovery > ctrl.config.discovery_period {
+                    ctrl.discover().await;
                     last_discovery = counter.0;
                 }
             },
-            // handle shutdown
         }
     }
 }
 
 #[derive(Clone, Debug)]
-pub struct ControllerActorHandler {
+pub struct ControllerHandle {
     sender: mpsc::Sender<ControllerMessage>,
 }
 
-impl ControllerActorHandler {
-    pub fn new(rt: &Runtime, state: Controller) -> Self {
-        let (sender, receiver) = mpsc::channel(8);
-        let actor = ControllerActor::new(state, receiver);
-        rt.spawn(run_controller_actor(actor));
+impl ControllerHandle {
+    pub fn new(rt: &Runtime, sender: mpsc::Sender<ControllerMessage>) -> Self {
         Self { sender }
     }
 
@@ -184,7 +190,7 @@ impl ControllerActorHandler {
         // recv.await below. There's no reason to check the
         // failure twice.
         let _ = self.sender.send(msg).await;
-        let answer = recv.await.expect("Actor task has been killed");
+        let answer = recv.await.expect("Controller task has been killed");
 
         match answer {
             ControllerResponse::Query(answer) => answer,
@@ -203,7 +209,7 @@ impl ControllerActorHandler {
         // recv.await below. There's no reason to check the
         // failure twice.
         let _ = self.sender.send(msg).await;
-        let answer = recv.await.expect("Actor task has been killed");
+        let answer = recv.await.expect("Controller task has been killed");
 
         match answer {
             ControllerResponse::GetStats(stats, _) => stats,
@@ -211,7 +217,7 @@ impl ControllerActorHandler {
         }
     }
 
-    pub async fn device_action<A: DeviceActionTrait>(
+    pub async fn device_handle_action<A: DeviceActionTrait>(
         &mut self,
         dev: &mut dyn DeviceControllableTrait<Action = A>,
         action: &A,
@@ -226,9 +232,9 @@ pub trait ControllerAPI: Send + Sync {
 }
 
 #[async_trait]
-impl ControllerAPI for ControllerActorHandler {
+impl ControllerAPI for ControllerHandle {
     async fn query(&self, id: u32, timeout_ms: Option<u32>) -> u32 {
-        ControllerActorHandler::query(self, id, timeout_ms).await
+        ControllerHandle::query(self, id, timeout_ms).await
     }
 }
 

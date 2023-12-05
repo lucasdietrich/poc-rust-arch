@@ -63,15 +63,17 @@ impl CanInterface {
         });
     }
 
-    pub async fn recv(&mut self) -> Option<CanFrame> {
+    pub async fn recv(&mut self, loopback: bool) -> Option<CanFrame> {
         let now = Utc::now();
-
-        if let Some(lp_frame) = self.buf.get(0) {
-            if lp_frame.push_timestamp + Duration::from_millis(DELAY) < now {
-                let mut frame = self.buf.pop().unwrap().frame;
-                frame.data[0] = frame.data[0].wrapping_add(self._n.0);
-                self.stats.rx += 1;
-                return Some(frame);
+        
+        if loopback {
+            if let Some(lp_frame) = self.buf.get(0) {
+                if lp_frame.push_timestamp + Duration::from_millis(DELAY) < now {
+                    let mut frame = self.buf.pop().unwrap().frame;
+                    frame.data[0] = frame.data[0].wrapping_add(self._n.0);
+                    self.stats.rx += 1;
+                    return Some(frame);
+                }
             }
         }
 

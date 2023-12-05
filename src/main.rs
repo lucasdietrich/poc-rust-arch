@@ -12,7 +12,7 @@ mod webserver;
 use std::sync::Arc;
 
 use can::CanConfig;
-use controller::ControllerConfig;
+use controller::{ControllerConfig, run_controller};
 
 fn main() {
     let rt = tokio::runtime::Builder::new_current_thread()
@@ -25,14 +25,15 @@ fn main() {
     let controller_config = ControllerConfig::default();
 
     let can_iface = can::CanInterface::new(can_config);
-    let controller = controller::Controller::new(can_iface, controller_config);
-    let controller_actor_handle = controller::ControllerActorHandler::new(&rt, controller);
+    let mut controller = controller::Controller::new(&rt, can_iface, controller_config);
+    let controller_handle = controller.get_handle();
 
-    let shared = Arc::new(shared::Shared::new(controller_actor_handle));
-
+    let shared = Arc::new(shared::Shared::new(controller_handle));
+    
+    let h_ctrl = rt.spawn(run_controller(controller));
     let h_web =
         rt.spawn(webserver::webserver("0.0.0.0".to_string(), 8091, shared.clone()).launch());
 
     // terminate on ctrl-c (handled by rocket)
-    let _ = rt.block_on(async move { tokio::join!(h_web) });
+    let _ = rt.block_on(async move { tokio::join!(h_web, h_ctrl) });
 }

@@ -10,11 +10,12 @@ pub enum DeviceError {
     Unsupported,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Device<D>
 where
     D: DeviceTrait + Debug,
-{
+{   
+    pub id: u32,
     pub last_seen: Option<Instant>,
 
     pub specific: D,
@@ -82,7 +83,7 @@ where
 }
 
 #[async_trait]
-pub trait DeviceTrait: Send {
+pub trait DeviceTrait: Send + Default {
     async fn handle_frame(&mut self, frame: &CanFrame) -> Result<(), DeviceError>;
 }
 

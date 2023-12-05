@@ -18,7 +18,7 @@ async fn route_dev_action(shared: &State<SharedHandle>) -> Json<Response> {
 
     // let dev = Device::<AlarmNode>::
 
-    // let ret = shared.controller_handler.device_action(dev, &action).await;
+    // let ret = shared.controller_handler.device_handle_action(dev, &action).await;
 
     Json(Response { id: 0 })
 }
