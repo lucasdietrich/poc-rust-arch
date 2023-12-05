@@ -2,6 +2,7 @@
 extern crate rocket;
 
 mod alarm;
+mod heater;
 mod can;
 mod controller;
 mod device;
@@ -38,6 +39,9 @@ fn main() {
         Shutdown::new(notify_shutdown.subscribe()),
     );
     let controller_handle = controller.get_handle();
+    
+    let alarm_handle = controller.get_device_alarm_handle();
+    let heater_handle = controller.get_device_heater_handle();
 
     let shared = Arc::new(shared::Shared::new(controller_handle));
 
@@ -50,7 +54,7 @@ fn main() {
 
         let _ = notify_shutdown.send(());
     });
-    
+
     let h_ctrl = rt.spawn(run_controller(controller));
     let h_web =
         rt.spawn(webserver::webserver("0.0.0.0".to_string(), 8091, shared.clone()).launch());

@@ -11,9 +11,9 @@ use crate::{
     alarm::AlarmNode,
     can::{CanFrame, CanInterface, CanStats},
     device::{
-        Device, DeviceAction, DeviceActionTrait, DeviceControllableTrait, DeviceError, DeviceTrait,
+        Device, DeviceAction, DeviceActionTrait, DeviceControllableTrait, DeviceError, DeviceTrait, DeviceHandle,
     },
-    shutdown::Shutdown,
+    shutdown::Shutdown, heater::HeaterNode,
 };
 
 #[derive(Debug, Default, Serialize, Clone)]
@@ -32,6 +32,7 @@ pub(crate) struct Controller {
     handle: ControllerHandle,
 
     dev_alarm: Device<AlarmNode>,
+    dev_heater: Device<HeaterNode>
 }
 
 #[derive(Debug)]
@@ -64,7 +65,11 @@ impl Controller {
             receiver,
             handle: ControllerHandle::new(rt, sender),
             dev_alarm: Device::<AlarmNode> {
-                id: 0x123,
+                id: 1,
+                ..Default::default()
+            },
+            dev_heater: Device::<HeaterNode> {
+                id: 2,
                 ..Default::default()
             },
         }
@@ -72,6 +77,14 @@ impl Controller {
 
     pub fn get_handle(&mut self) -> ControllerHandle {
         self.handle.clone()
+    }
+
+    pub fn get_device_alarm_handle(&mut self) -> DeviceHandle {
+        DeviceHandle::from(&self.handle, &self.dev_alarm)
+    }
+
+    pub fn get_device_heater_handle(&mut self) -> DeviceHandle {
+        DeviceHandle::from(&self.handle, &self.dev_heater)
     }
 
     async fn handle_message(&mut self, message: ControllerMessage) {

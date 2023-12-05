@@ -6,11 +6,11 @@ pub type SharedHandle = Arc<Shared>;
 
 #[derive(Debug)]
 pub struct Shared {
-    pub controller_handler: ControllerHandle,
+    pub controller_handle: ControllerHandle,
 }
 
 impl Shared {
-    pub fn new(controller_handler: ControllerHandle) -> Shared {
-        Shared { controller_handler }
+    pub fn new(controller_handle: ControllerHandle) -> Shared {
+        Shared { controller_handle }
     }
 }

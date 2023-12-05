@@ -16,16 +16,16 @@ struct Stats {
 async fn route_dev_action(shared: &State<SharedHandle>) -> Json<Response> {
     let action = AlarmAction::PowerLights(true, true);
 
-    // let dev = Device::<AlarmNode>::
+    // let alarm_handle = shared.controller_handle.
 
-    // let ret = shared.controller_handler.device_handle_action(dev, &action).await;
+    // let ret = shared.controller_handle.device_handle_action(dev, &action).await;
 
     Json(Response { id: 0 })
 }
 
 #[get("/stats")]
 async fn route_stats(shared: &State<SharedHandle>) -> Json<ControllerStats> {
-    let stats = shared.controller_handler.get_stats().await;
+    let stats = shared.controller_handle.get_stats().await;
 
     Json(stats)
 }
@@ -41,7 +41,7 @@ async fn route_query(
     timeout: Option<u32>,
     shared: &State<SharedHandle>,
 ) -> Json<Response> {
-    let id = shared.controller_handler.query(id, timeout).await;
+    let id = shared.controller_handle.query(id, timeout).await;
     Json(Response { id })
 }
 
