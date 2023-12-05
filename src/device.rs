@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use std::{time::Instant, fmt::Debug};
+use std::{fmt::Debug, time::Instant};
 use thiserror::Error;
 
 use crate::{can::CanFrame, controller::ControllerAPI};
@@ -14,7 +14,7 @@ pub enum DeviceError {
 pub struct Device<D>
 where
     D: DeviceTrait + Debug,
-{   
+{
     pub id: u32,
     pub last_seen: Option<Instant>,
 

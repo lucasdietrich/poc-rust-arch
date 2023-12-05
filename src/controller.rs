@@ -8,8 +8,12 @@ use tokio::{
 };
 
 use crate::{
+    alarm::AlarmNode,
     can::{CanFrame, CanInterface, CanStats},
-    device::{DeviceAction, DeviceActionTrait, DeviceControllableTrait, DeviceError, Device, DeviceTrait}, alarm::AlarmNode,
+    device::{
+        Device, DeviceAction, DeviceActionTrait, DeviceControllableTrait, DeviceError, DeviceTrait,
+    },
+    shutdown::Shutdown,
 };
 
 #[derive(Debug, Default, Serialize, Clone)]
@@ -18,17 +22,16 @@ pub struct ControllerStats {
 }
 
 #[derive(Debug)]
-pub struct Controller {
-    pub iface: CanInterface,
-    pub stats: ControllerStats,
-    pub config: ControllerConfig,
+pub(crate) struct Controller {
+    iface: CanInterface,
+    stats: ControllerStats,
+    config: ControllerConfig,
 
-    pub alarm: Device<AlarmNode>,
-
+    shutdown: Shutdown,
     receiver: mpsc::Receiver<ControllerMessage>,
     handle: ControllerHandle,
 
-    // dev_alarm: Device<AlarmNode>,
+    dev_alarm: Device<AlarmNode>,
 }
 
 #[derive(Debug)]
@@ -45,23 +48,25 @@ impl Default for ControllerConfig {
 }
 
 impl Controller {
-    pub fn new(rt: &Runtime, iface: CanInterface, config: ControllerConfig) -> Controller {
+    pub fn new(
+        rt: &Runtime,
+        iface: CanInterface,
+        config: ControllerConfig,
+        shutdown: Shutdown,
+    ) -> Controller {
         let (sender, receiver) = mpsc::channel(8);
 
         Controller {
             iface,
             stats: ControllerStats::default(),
             config,
-            alarm: Device::<AlarmNode> {
-                id: 0x123,
-                last_seen: None,
-                specific: AlarmNode {
-                    active: false,
-                    triggered_count: 0,
-                },
-            },
+            shutdown,
             receiver,
             handle: ControllerHandle::new(rt, sender),
+            dev_alarm: Device::<AlarmNode> {
+                id: 0x123,
+                ..Default::default()
+            },
         }
     }
 
@@ -79,10 +84,8 @@ impl Controller {
                 }
             }
             ControllerMessageType::GetStats => {
-                let response = ControllerResponse::GetStats(
-                    self.stats.clone(),
-                    self.iface.stats.clone(),
-                );
+                let response =
+                    ControllerResponse::GetStats(self.stats.clone(), self.iface.stats.clone());
                 let _ = message.respond_to.send(response);
             }
             ControllerMessageType::QueryDevice(action) => {}
@@ -123,7 +126,10 @@ impl Controller {
         };
         self.iface.send(query).await;
 
-        self.iface.recv(true).await.map(|frame| frame.data[0] as u32)
+        self.iface
+            .recv(true)
+            .await
+            .map(|frame| frame.data[0] as u32)
     }
 }
 
@@ -144,7 +150,7 @@ pub struct ControllerMessage {
     inner: ControllerMessageType,
 }
 
-pub async fn run_controller(mut ctrl: Controller) {
+pub(crate) async fn run_controller(mut ctrl: Controller) {
     let mut counter: Wrapping<u32> = Wrapping(0);
     let mut last_discovery: u32 = 0;
     loop {
@@ -165,6 +171,10 @@ pub async fn run_controller(mut ctrl: Controller) {
                     last_discovery = counter.0;
                 }
             },
+            _ = ctrl.shutdown.recv() => {
+                println!("Shutting down controller");
+                break;
+            }
         }
     }
 }

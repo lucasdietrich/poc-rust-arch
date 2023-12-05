@@ -65,7 +65,7 @@ impl CanInterface {
 
     pub async fn recv(&mut self, loopback: bool) -> Option<CanFrame> {
         let now = Utc::now();
-        
+
         if loopback {
             if let Some(lp_frame) = self.buf.get(0) {
                 if lp_frame.push_timestamp + Duration::from_millis(DELAY) < now {
