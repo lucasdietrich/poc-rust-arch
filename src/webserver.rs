@@ -3,7 +3,7 @@ use rocket::{log::LogLevel, Build, Config, Rocket, State};
 
 use crate::alarm::{AlarmAction, AlarmNode};
 use crate::can::CanStats;
-use crate::controller::ControllerStats;
+use crate::controller::{ControllerStats, DeviceNodeAction};
 use crate::shared::SharedHandle;
 
 #[derive(Serialize, Default)]
@@ -16,7 +16,9 @@ struct Stats {
 async fn route_dev_action(shared: &State<SharedHandle>) -> Json<Response> {
     let action = AlarmAction::PowerLights(true, true);
 
-    // let alarm_handle = shared.controller_handle.
+    let alarm_handle = shared.controller_handle.query_device(DeviceNodeAction::Alarm(
+        AlarmAction::PowerLights(true, true)
+    ));
 
     // let ret = shared.controller_handle.device_handle_action(dev, &action).await;
 

@@ -101,9 +101,9 @@ pub trait DeviceTrait: Send + Default + Debug {
 }
 
 pub trait DeviceActionTrait: Sync + Send {
-    // fn get_action(&self) -> Self {
-    //     self
-    // }
+    // type Action;
+
+    // fn get_action(&self) -> &Self::Action;
 }
 
 #[async_trait]
@@ -129,7 +129,7 @@ impl DeviceHandle {
     {
         DeviceHandle {
             id: device.get_id(),
-            ctrl: controller_handle.clone()
+            ctrl: controller_handle.clone(),
         }
     }
 }

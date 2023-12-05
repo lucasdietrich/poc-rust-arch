@@ -42,7 +42,7 @@ impl DeviceControllableTrait for AlarmNode {
                 self.active = *active;
             }
             AlarmAction::PowerLights(front, rear) => {
-                let z = api.query(1, Some(0)).await;
+                let z = api.query_frame(1, Some(0)).await;
             }
         };
 

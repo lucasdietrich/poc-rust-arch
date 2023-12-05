@@ -25,7 +25,7 @@ pub enum HeaterState {
 
 pub enum HeaterAction {
     SetActive(bool),
-    HeaterPower(HeaterState, HeaterState),  // left and right heater power
+    HeaterPower(HeaterState, HeaterState), // left and right heater power
 }
 
 impl DeviceActionTrait for HeaterAction {}
@@ -44,7 +44,7 @@ impl DeviceControllableTrait for HeaterNode {
                 self.active = *active;
             }
             HeaterAction::HeaterPower(left, right) => {
-                let z = api.query(1, Some(0)).await;
+                let z = api.query_frame(1, Some(0)).await;
             }
         };
 

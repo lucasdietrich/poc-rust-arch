@@ -2,10 +2,11 @@
 extern crate rocket;
 
 mod alarm;
-mod heater;
 mod can;
 mod controller;
+mod traits;
 mod device;
+mod heater;
 mod shared;
 mod shutdown;
 mod utils;
@@ -39,7 +40,7 @@ fn main() {
         Shutdown::new(notify_shutdown.subscribe()),
     );
     let controller_handle = controller.get_handle();
-    
+
     let alarm_handle = controller.get_device_alarm_handle();
     let heater_handle = controller.get_device_heater_handle();
 

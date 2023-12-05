@@ -8,12 +8,14 @@ use tokio::{
 };
 
 use crate::{
-    alarm::AlarmNode,
+    alarm::{AlarmNode, AlarmAction},
     can::{CanFrame, CanInterface, CanStats},
     device::{
-        Device, DeviceAction, DeviceActionTrait, DeviceControllableTrait, DeviceError, DeviceTrait, DeviceHandle,
+        Device, DeviceAction, DeviceActionTrait, DeviceControllableTrait, DeviceError,
+        DeviceHandle, DeviceTrait,
     },
-    shutdown::Shutdown, heater::HeaterNode,
+    heater::{HeaterNode, HeaterAction},
+    shutdown::Shutdown,
 };
 
 #[derive(Debug, Default, Serialize, Clone)]
@@ -32,7 +34,7 @@ pub(crate) struct Controller {
     handle: ControllerHandle,
 
     dev_alarm: Device<AlarmNode>,
-    dev_heater: Device<HeaterNode>
+    dev_heater: Device<HeaterNode>,
 }
 
 #[derive(Debug)]
@@ -101,14 +103,27 @@ impl Controller {
                     ControllerResponse::GetStats(self.stats.clone(), self.iface.stats.clone());
                 let _ = message.respond_to.send(response);
             }
-            ControllerMessageType::QueryDevice(action) => {}
+            ControllerMessageType::QueryDevice(action) => {
+                match action {
+                    DeviceNodeAction::Alarm(action) => {
+                        let z = self.dev_alarm.handle_action(&self.handle, &action).await;
+                    }
+                    DeviceNodeAction::Heater(action) => {
+                        let z = self.dev_heater.handle_action(&self.handle, &action).await;
+                    }
+                }
+            }
         }
     }
 
-    async fn handle_frame(&mut self, frame: CanFrame) {
-        // if frame.id == self.dev_alarm.id {
-        //     self.dev_alarm.handle_frame(&frame).await;
-        // }
+    async fn handle_frame(&mut self, frame: CanFrame) -> Result<(), DeviceError> {
+        if frame.id == self.dev_alarm.id {
+            self.dev_alarm.handle_frame(&frame).await
+        } else if frame.id == self.dev_heater.id {
+            self.dev_heater.handle_frame(&frame).await
+        } else {
+            Ok(())
+        }
     }
 
     async fn discover(&mut self) {
@@ -146,10 +161,15 @@ impl Controller {
     }
 }
 
+pub enum DeviceNodeAction {
+    Alarm(AlarmAction),
+    Heater(HeaterAction),
+}
+
 pub enum ControllerMessageType {
     Query(u32, Option<u32>), // id, timeout_ms
     GetStats,
-    QueryDevice(Box<dyn DeviceActionTrait>),
+    QueryDevice(DeviceNodeAction),
 }
 
 #[derive(Debug)]
@@ -240,6 +260,18 @@ impl ControllerHandle {
         }
     }
 
+    pub async fn query_device(&self, action: DeviceNodeAction) {
+        let msg = ControllerMessage {
+            respond_to: oneshot::channel().0,
+            inner: ControllerMessageType::QueryDevice(action),
+        };
+
+        // Ignore send errors. If this send fails, so does the
+        // recv.await below. There's no reason to check the
+        // failure twice.
+        let _ = self.sender.send(msg).await;
+    }
+
     pub async fn device_handle_action<A: DeviceActionTrait>(
         &mut self,
         dev: &mut dyn DeviceControllableTrait<Action = A>,
@@ -251,17 +283,19 @@ impl ControllerHandle {
 
 #[async_trait]
 pub trait ControllerAPI: Send + Sync {
-    async fn query(&self, id: u32, timeout_ms: Option<u32>) -> u32;
+    async fn query_frame(&self, id: u32, timeout_ms: Option<u32>) -> u32;
 }
 
 #[async_trait]
 impl ControllerAPI for ControllerHandle {
-    async fn query(&self, id: u32, timeout_ms: Option<u32>) -> u32 {
+    async fn query_frame(&self, id: u32, timeout_ms: Option<u32>) -> u32 {
         ControllerHandle::query(self, id, timeout_ms).await
     }
 }
 
-// #[derive(Clone, Debug)]
-// pub struct DeviceHandle<D: DeviceControllableTrait> {
-//     dev: &mut D,
-// }
+#[async_trait]
+impl ControllerAPI for Controller {
+    async fn query_frame(&self, id: u32, timeout_ms: Option<u32>) -> u32 {
+        self.handle.query(id, timeout_ms).await
+    }
+}
